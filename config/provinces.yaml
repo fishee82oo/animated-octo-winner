@@ -1,0 +1,108 @@
+# Illustrative simulator assumptions, NOT official tariffs or current market rules. CNY/MWh; MW.
+{
+  "shandong": {
+    "benchmark_price": 380,
+    "price_floor": -80,
+    "price_cap": 900,
+    "load_base": 50000,
+    "solar_share": 0.38,
+    "wind_share": 0.15,
+    "hydro_share": 0.03,
+    "coal_sensitivity": 0.38,
+    "summer": 0.25,
+    "winter": 0.12,
+    "renewable_sensitivity": 750,
+    "load_sensitivity": 600,
+    "wet_hydro_multiplier": 1.0,
+    "contract_share": 0.9,
+    "contract_floating_band": [
+      -0.2,
+      0.2
+    ],
+    "label": "山东"
+  },
+  "gansu_mengxi": {
+    "benchmark_price": 380,
+    "price_floor": -120,
+    "price_cap": 900,
+    "load_base": 22000,
+    "solar_share": 0.15,
+    "wind_share": 0.52,
+    "hydro_share": 0.03,
+    "coal_sensitivity": 0.38,
+    "summer": 0.1,
+    "winter": 0.24,
+    "renewable_sensitivity": 800,
+    "load_sensitivity": 600,
+    "wet_hydro_multiplier": 1.0,
+    "contract_share": 0.9,
+    "contract_floating_band": [
+      -0.2,
+      0.2
+    ],
+    "label": "甘肃/蒙西"
+  },
+  "sichuan": {
+    "benchmark_price": 330,
+    "price_floor": 0,
+    "price_cap": 900,
+    "load_base": 40000,
+    "solar_share": 0.08,
+    "wind_share": 0.04,
+    "hydro_share": 0.5,
+    "coal_sensitivity": 0.15,
+    "summer": 0.25,
+    "winter": 0.12,
+    "renewable_sensitivity": 750,
+    "load_sensitivity": 600,
+    "wet_hydro_multiplier": 1.8,
+    "contract_share": 0.9,
+    "contract_floating_band": [
+      -0.2,
+      0.2
+    ],
+    "label": "四川"
+  },
+  "guangdong": {
+    "benchmark_price": 450,
+    "price_floor": 0,
+    "price_cap": 1100,
+    "load_base": 85000,
+    "solar_share": 0.14,
+    "wind_share": 0.07,
+    "hydro_share": 0.13,
+    "coal_sensitivity": 0.38,
+    "summer": 0.35,
+    "winter": 0.03,
+    "renewable_sensitivity": 750,
+    "load_sensitivity": 600,
+    "wet_hydro_multiplier": 1.0,
+    "contract_share": 0.9,
+    "contract_floating_band": [
+      -0.2,
+      0.2
+    ],
+    "label": "广东"
+  },
+  "shanxi": {
+    "benchmark_price": 350,
+    "price_floor": 0,
+    "price_cap": 900,
+    "load_base": 30000,
+    "solar_share": 0.14,
+    "wind_share": 0.15,
+    "hydro_share": 0.03,
+    "coal_sensitivity": 0.75,
+    "summer": 0.25,
+    "winter": 0.25,
+    "renewable_sensitivity": 750,
+    "load_sensitivity": 600,
+    "wet_hydro_multiplier": 1.0,
+    "contract_share": 0.9,
+    "contract_floating_band": [
+      -0.2,
+      0.2
+    ],
+    "label": "山西"
+  }
+}
