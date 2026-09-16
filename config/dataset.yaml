@@ -1,0 +1,14 @@
+{
+  "name": "PriceFM",
+  "repository": "runyao-yu/PriceFM",
+  "dataset": "RunyaoYu/PriceFM",
+  "revision": "68b032a923e518bcf88edde906035ea223870aee",
+  "sha256": "98f596deba7ffaf0edd21e78e1a779256ab24dda5463d445f081e1ee4ab3a54a",
+  "license": "CC BY 4.0",
+  "url": "https://huggingface.co/datasets/RunyaoYu/PriceFM/resolve/68b032a923e518bcf88edde906035ea223870aee/FINAL.csv",
+  "market_timezone": "Europe/Brussels",
+  "default_zone": "DE_LU",
+  "price_unit": "EUR/MWh",
+  "power_unit": "MW",
+  "resolution": "1h"
+}

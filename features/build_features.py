@@ -1,57 +1,76 @@
-"""Fixed-origin day-ahead features; target prices are never inputs.
-
-Each day's 24 rows share a midnight origin. Price t-1 is available only for
-hour zero and otherwise is the last known price (frozen, not realized).
-Historical driver levels and coal are frozen; *_forecast are explicit noisy
-synthetic ex-ante forecasts, not observations available in real deployment.
-"""
+"""Delivery-day features with explicit European clock and auction information set."""
 
 import numpy as np
 import pandas as pd
-from data.connectors import validate
-from data.simulator import tou_period
-
-TOU = ["sharp_peak", "peak", "flat", "valley"]
+from data.connectors import validate, settings
 
 
-def build_features(frame, seed=123, holidays=None):
+def delivery_clock(index):
+    return pd.DatetimeIndex(index).tz_convert(settings()["market_timezone"])
+
+
+def issue_time(delivery_start):
+    """Research origin: D-1 11:00 Brussels, before the usual noon auction."""
+    wall = (
+        pd.Timestamp(delivery_start)
+        .tz_convert(settings()["market_timezone"])
+        .tz_localize(None)
+        .normalize()
+    )
+    return (
+        (wall - pd.Timedelta(days=1) + pd.Timedelta(hours=11))
+        .tz_localize(settings()["market_timezone"])
+        .tz_convert("UTC")
+    )
+
+
+def delivery_period(index):
+    local = delivery_clock(index)
+    return np.select(
+        [local.dayofweek >= 5, (local.hour >= 8) & (local.hour < 20)],
+        ["weekend", "weekday_peak"],
+        default="weekday_offpeak",
+    )
+
+
+def build_features(frame, use_exogenous=True):
     df = validate(frame).set_index("timestamp")
     idx = df.index
-    origin = idx.normalize()
-    out = pd.DataFrame(index=idx)
-    out["hour"] = idx.hour
-    out["day_of_week"] = idx.dayofweek
-    out["month"] = idx.month
-    # Explicit supplied dates; default is New Year only, not a Chinese calendar.
-    dates = set(pd.to_datetime(holidays).date) if holidays is not None else set()
-    out["holiday"] = np.array(
-        [d.date() in dates or (d.month == 1 and d.day == 1) for d in idx], int
+    local = delivery_clock(idx)
+    start = local.normalize().tz_convert("UTC")
+    wall = local.tz_localize(None)
+    x = pd.DataFrame(index=idx)
+    x["hour"] = local.hour
+    x["day_of_week"] = local.dayofweek
+    x["month"] = local.month
+    x["utc_offset_hours"] = [t.utcoffset().total_seconds() / 3600 for t in local]
+    x["hour_sin"] = np.sin(local.hour * 2 * np.pi / 24)
+    x["hour_cos"] = np.cos(local.hour * 2 * np.pi / 24)
+    x["price_last_known"] = df.price.reindex(start - pd.Timedelta(hours=1)).to_numpy()
+    # D-1 delivery prices are already known from the preceding day-ahead auction,
+    # including D-1 evening hours beyond the D-1 11:00 forecast issue clock.
+    historical_wall = pd.Series(df.price.to_numpy(), index=wall).groupby(level=0).mean()
+    daily = (
+        pd.Series(df.price.to_numpy(), index=wall.normalize()).groupby(level=0).mean()
     )
-    for bucket in TOU:
-        out["tou_" + bucket] = (tou_period(idx.hour) == bucket).astype(int)
-
-    def at(series, times):
-        return series.reindex(times).to_numpy()
-
-    out["price_lag_1"] = at(df.price, origin - pd.Timedelta(hours=1))
-    for lag in [24, 168]:
-        out[f"price_lag_{lag}"] = df.price.shift(lag)
+    for days, name in [(1, "day"), (7, "week")]:
+        keys = wall - pd.Timedelta(days=days)
+        values = historical_wall.reindex(keys).to_numpy()
+        # Spring missing wall hour: previous reference day's mean. Fall duplicate
+        # reference hours: their mean. Both use only the earlier delivery day.
+        fallback = daily.reindex(keys.normalize()).to_numpy()
+        x[f"price_lag_{name}"] = np.where(np.isnan(values), fallback, values)
     for window in [24, 168]:
         for stat in ["mean", "std"]:
-            rolled = getattr(df.price.rolling(window), stat)()
-            out[f"price_roll_{window}_{stat}"] = at(
-                rolled, origin - pd.Timedelta(hours=1)
-            )
-    for j, col in enumerate(["load_mw", "wind_mw", "solar_mw"]):
-        rng = np.random.default_rng(np.random.SeedSequence([seed, j]))
-        out[col + "_last"] = at(df[col], origin - pd.Timedelta(hours=1))
-        # Multiplicative error avoids fitting a noise scale on future data.
-        out[col + "_forecast"] = np.maximum(
-            0, df[col].to_numpy() * (1 + rng.normal(0, 0.12, len(df)))
+            series = getattr(df.price.rolling(window), stat)()
+            x[f"price_roll_{window}_{stat}"] = series.reindex(
+                start - pd.Timedelta(hours=1)
+            ).to_numpy()
+    if use_exogenous:
+        # PriceFM labels these as day-ahead forecasts; no generation/actual columns.
+        for c in ["load_forecast_mw", "solar_forecast_mw", "wind_forecast_mw"]:
+            x[c] = df[c]
+        x["net_load_forecast_mw"] = (
+            df.load_forecast_mw - df.solar_forecast_mw - df.wind_forecast_mw
         )
-    out["hydro_mw_last"] = at(df.hydro_mw, origin - pd.Timedelta(hours=1))
-    out["coal_index"] = at(df.coal_index, origin - pd.Timedelta(hours=1))
-    out["coal_trend"] = at(
-        df.coal_index - df.coal_index.shift(168), origin - pd.Timedelta(hours=1)
-    )
-    return out.astype(float)
+    return x.astype(float)

@@ -53,10 +53,10 @@ def report(predictions):
     rows = []
     for group, df in [
         ("overall", predictions),
-        *list(predictions.groupby("tou_period")),
+        *list(predictions.groupby("delivery_period")),
     ]:
         row = dict(
-            tou_period=group,
+            delivery_period=group,
             n=len(df),
             **point_metrics(df.actual, df.prediction),
             **spike_capture(df.actual, df.prediction, df.spike_threshold),

@@ -4,19 +4,19 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+import json
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-from data.simulator import profiles
-from data.connectors import CsvConnector, SyntheticConnector
+from data.connectors import markets, settings, PriceFMConnector
 from models.baselines import Naive, SeasonalNaive, Sarimax
 from models.gbm import GBM
 from models.quantile import QuantileGBM
 from backtest.walk_forward import walk_forward
 
 MODELS = {
-    "Naive persistence": Naive,
-    "Seasonal naive": SeasonalNaive,
+    "Persistence": Naive,
+    "Weekly seasonal naive": SeasonalNaive,
     "SARIMAX": Sarimax,
     "LightGBM point": GBM,
     "LightGBM quantile": QuantileGBM,
@@ -25,40 +25,45 @@ MODELS = {
 
 def setup(title):
     st.set_page_config(
-        page_title=title + " · Power Spot Lab", page_icon="⚡", layout="wide"
+        page_title=title + " · Europe Power Spot Lab", page_icon="⚡", layout="wide"
     )
     st.title(title)
-    st.caption(
-        "Research & education · Synthetic data · CNY/MWh · China local time (UTC+8) · No execution facilities"
-    )
-    choices = profiles()
-    selected = st.session_state.get("selected_province", "shandong")
-    province = st.sidebar.selectbox(
-        "Province",
+    st.caption("PriceFM historical research data · EUR/MWh · No trading or execution")
+    choices = markets()
+    selected = st.session_state.get("selected_zone", "DE_LU")
+    zone = st.sidebar.selectbox(
+        "Bidding zone",
         list(choices),
         index=list(choices).index(selected),
-        format_func=lambda k: f"{choices[k]['label']} · {k}",
-        key="_province",
+        format_func=lambda x: f"{x} · {choices[x]}",
+        key="_zone",
     )
-    st.session_state["selected_province"] = province
+    st.session_state["selected_zone"] = zone
     st.sidebar.info(
-        "Hourly synthetic spot market. Tariffs and price bands are illustrative assumptions."
+        "Historical day-ahead prices. Source: PriceFM / Runyao Yu et al. CC BY 4.0. Delivery days: Europe/Brussels."
     )
-    return province, choices[province], dataset(province)
+    try:
+        df = dataset(zone)
+    except (FileNotFoundError, ValueError) as exc:
+        st.error(str(exc))
+        st.code("python data/download_dataset.py")
+        st.stop()
+    return zone, df
 
 
-@st.cache_data(show_spinner="Loading synthetic market…")
-def dataset(province):
-    file = ROOT / "data/cache" / f"{province}_3y_seed42.csv"
-    if file.exists():
-        return CsvConnector(file).load()
-    return SyntheticConnector(province, years=3, seed=42).load()
+@st.cache_data(show_spinner="Loading verified PriceFM cache…")
+def dataset(zone):
+    return PriceFMConnector(zone).load()
 
 
-@st.cache_data(show_spinner="Running daily walk-forward evaluation…")
-def evaluate(province, model, days=3):
+@st.cache_data(show_spinner="Running delivery-day walk-forward evaluation…")
+def evaluate(zone, model, days=3, end_date="2025-12-31", use_exogenous=True):
     return walk_forward(
-        dataset(province), MODELS[model], days=days, min_train_days=30, window_days=90
+        dataset(zone),
+        MODELS[model],
+        days=days,
+        end_date=end_date,
+        use_exogenous=use_exogenous,
     )
 
 
@@ -73,14 +78,17 @@ def forecast_chart(pred):
                 x=pred.timestamp,
                 y=pred.p10,
                 name="P10–P90",
-                line=dict(width=0),
                 fill="tonexty",
-                fillcolor="rgba(32,160,160,.2)",
+                fillcolor="rgba(20,160,170,.2)",
+                line=dict(width=0),
             )
         )
     fig.add_trace(
         go.Scatter(
-            x=pred.timestamp, y=pred.actual, name="Actual", line=dict(color="#536379")
+            x=pred.timestamp,
+            y=pred.actual,
+            name="Historical price",
+            line=dict(color="#536379"),
         )
     )
     fig.add_trace(
@@ -88,12 +96,28 @@ def forecast_chart(pred):
             x=pred.timestamp,
             y=pred.prediction,
             name="Forecast",
-            line=dict(color="#00a6a6"),
+            line=dict(color="#009eab"),
         )
     )
     fig.update_layout(
-        yaxis_title="CNY/MWh",
-        xaxis_title="Settlement hour",
+        yaxis_title="EUR/MWh",
+        xaxis_title="Delivery timestamp (UTC)",
         legend=dict(orientation="h"),
     )
     return fig
+
+
+def controls(df):
+    days = st.slider("Evaluation delivery days", 1, 14, 3)
+    local = df.timestamp.dt.tz_convert("Europe/Brussels")
+    end = st.date_input(
+        "Last delivery date",
+        value=local.iloc[-1].date(),
+        min_value=local.iloc[0].date(),
+        max_value=local.iloc[-1].date(),
+    )
+    exog = st.checkbox("Include PriceFM load, wind and solar forecasts", value=True)
+    st.caption(
+        "Research origin: 11:00 Europe/Brussels on D−1. PriceFM has no issue-time vintages or per-value imputation flags; this is a retrospective benchmark, not a verified auction-time replay. Uncheck forecast inputs for a price-only comparison."
+    )
+    return days, str(end), exog

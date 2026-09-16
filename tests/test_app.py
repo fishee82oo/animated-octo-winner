@@ -1,8 +1,15 @@
 from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
+import app.common as common
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def offline_app_data(monkeypatch, hourly):
+    monkeypatch.setattr(common, "dataset", lambda zone: hourly.copy())
+    common.evaluate.clear()
 
 
 @pytest.mark.parametrize(
@@ -21,20 +28,18 @@ def test_pages_load(page):
 
 
 @pytest.mark.parametrize("model", ["LightGBM point", "LightGBM quantile"])
-def test_ui_runs_models(model):
+def test_ui_model_runs(model):
     app = AppTest.from_file(
         str(ROOT / "app/pages/2_Forecast_and_Backtest.py"), default_timeout=60
     ).run()
     app.selectbox[0].select(model).run()
     app.button[0].click().run()
-    assert not app.exception
-    assert len(app.dataframe) == 1
+    assert not app.exception and len(app.dataframe) == 1
 
 
-def test_leaderboard_runs():
+def test_ui_leaderboard():
     app = AppTest.from_file(
         str(ROOT / "app/pages/3_Model_Leaderboard.py"), default_timeout=60
     ).run()
     app.button[0].click().run()
-    assert not app.exception
-    assert len(app.dataframe[0].value) == 5
+    assert not app.exception and len(app.dataframe[0].value) == 5

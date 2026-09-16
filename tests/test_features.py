@@ -1,42 +1,45 @@
 import numpy as np
 import pandas as pd
-from data.simulator import simulate
-from features.build_features import build_features
+import pytest
+from features.build_features import build_features, delivery_clock, issue_time
 
 
-def test_fixed_origin_lags_and_rolling():
-    df = simulate(years=0.1)
-    df["price"] = np.arange(len(df), dtype=float)
-    x = build_features(df)
+@pytest.mark.parametrize("date", ["2024-03-31", "2024-10-27"])
+def test_no_target_day_or_future_price_leakage(hourly, date):
+    local = delivery_clock(hourly.timestamp)
+    mask = local.date == pd.Timestamp(date).date()
+    a = build_features(hourly)
+    changed = hourly.copy()
+    changed.loc[local.date >= pd.Timestamp(date).date(), "price"] = 999999
+    b = build_features(changed)
+    pd.testing.assert_frame_equal(a.loc[mask], b.loc[mask])
+    assert a.loc[mask].notna().all().all()
+
+
+def test_same_wall_hour_lag_and_rolling(hourly):
+    hourly["price"] = np.arange(len(hourly), dtype=float)
+    x = build_features(hourly)
     i = 240
-    assert x.iloc[i].price_lag_1 == 239
-    assert x.iloc[i + 23].price_lag_1 == 239
-    assert x.iloc[i + 23].price_lag_24 == 239
-    assert x.iloc[i].price_lag_168 == 72
-    assert x.iloc[i + 23].price_roll_24_mean == np.arange(216, 240).mean()
-    assert np.isclose(x.iloc[i].price_roll_168_std, np.arange(72, 240).std(ddof=1))
+    assert x.iloc[i].price_lag_day == i - 24
+    assert x.iloc[i + 23].price_last_known == 239
+    assert x.iloc[i].price_roll_24_mean == np.arange(216, 240).mean()
+    assert x.iloc[i].price_roll_168_std == np.arange(72, 240).std(ddof=1)
 
 
-def test_no_target_leakage_for_entire_day():
-    df = simulate(years=0.1)
-    a = build_features(df)
-    df.loc[240:, "price"] = 999999
-    b = build_features(df)
-    pd.testing.assert_frame_equal(a.iloc[240:264], b.iloc[240:264])
-    pd.testing.assert_frame_equal(a.iloc[:240], b.iloc[:240])
+def test_price_only_excludes_driver_columns(hourly):
+    a = build_features(hourly, False)
+    changed = hourly.copy()
+    changed.load_forecast_mw *= 100
+    pd.testing.assert_frame_equal(a, build_features(changed, False))
+    assert not any("forecast" in c for c in a)
 
 
-def test_observed_future_coal_does_not_leak():
-    df = simulate(years=0.1)
-    a = build_features(df)
-    df.loc[240:, "coal_index"] *= 2
-    b = build_features(df)
-    pd.testing.assert_frame_equal(a.iloc[240:264], b.iloc[240:264])
-
-
-def test_prefix_stability_and_forecast_contract():
-    df = simulate(years=0.1)
-    a = build_features(df)
-    b = build_features(df.iloc[:300])
-    pd.testing.assert_frame_equal(a.iloc[:300], b)
-    assert not a.filter(like="_forecast").isna().any().any()
+def test_issue_clock_handles_dst():
+    for date in ["2024-04-01", "2024-10-28"]:
+        target = pd.Timestamp(date, tz="Europe/Brussels")
+        origin = issue_time(target).tz_convert("Europe/Brussels")
+        assert (
+            origin.hour == 11
+            and origin.date()
+            == (target.tz_localize(None) - pd.Timedelta(days=1)).date()
+        )

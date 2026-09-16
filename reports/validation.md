@@ -1,17 +1,14 @@
-# Validation record
+# Europe restart validation
 
-Environment: Python 3.11.16, Apple Silicon. Exact Python package versions are in `requirements-lock.txt`.
+Python 3.11.16; exact versions in requirements-lock.txt.
 
-- Phase 1: scaffold and five distinct parameter profiles checked.
-- Phase 2: required CLI produced 26,280 rows. Synthetic-pattern assertions passed. Plotly report generated; charts rendered in the dashboard and executed notebook. Midday average 204.8 versus evening 469.7 CNY/MWh; Sichuan wet/dry hydro ratio 2.77; Gansu/Mengxi overnight wind/price correlation −0.73. Shandong has six midday hours at or below 20 CNY/MWh over three years.
-- Phase 3: origin-based lag/rolling, target perturbation, coal boundary and prefix-stability tests passed.
-- Phase 4: persistence, seasonal naive and SARIMAX ran through daily evaluation. SARIMAX converged on the smoke-test origins.
-- Phase 5: LightGBM point forecast ran; MAE 37.38 versus seasonal naive 51.05 on the shared 72-hour summer smoke test.
-- Phase 6: ordered quantiles, pinball, spike metrics and train-only threshold checks passed. P50 MAE 35.28; interval coverage 66.7% versus nominal 80%.
-- Phase 7: settlement identity, zero/full hedge, negative prices, seller loss sign, tail ties/fractional mass and scenario reproducibility tests passed.
-- Phase 8: Streamlit AppTest loaded Home and all four pages; both GBM UI runs and the all-model leaderboard passed. Live server health returned `ok`; browser displayed the data and charts.
-- Phase 9: all 29 pytest tests passed; compileall succeeded. Six notebook code cells executed top to bottom with no notebook error outputs. A macOS sandbox restriction emitted an ipykernel child-process enumeration warning during shutdown, after execution; the runner exited successfully and saved every cell's outputs.
+- PriceFM source SHA-256 verified against config/dataset.yaml. 140,257 source rows; 38 zone caches, each with 35,064 hourly rows. One partial endpoint hour omitted per zone. No source missing values; upstream interpolation/zero placeholders remain.
+- 33 pytest tests passed. Includes duplicate/gap rejection, source and cache integrity, negative-price preservation, local-day price-lag leakage checks, 23/25-hour horizons, and a 719-hour 30-local-day training window.
+- All five models completed on DE_LU actual dataset (2025-12-29 through 2025-12-31); SARIMAX converged on the smoke-test origins. Metrics in DE_LU_benchmark.csv.
+- Additional LightGBM smoke tests completed for FR, ES and NL; results in cross_zone_smoke.csv.
+- Actual DE_LU data produced 23 forecast hours on 2025-03-30 and 25 on 2025-10-26.
+- Streamlit AppTest loaded every page, ran both LightGBM UI workflows, and computed the five-model leaderboard using offline toy fixtures. Toy data is isolated to tests.
+- Live Europe dashboard on localhost:8502 returned health `ok`; browser verified the actual 38-zone source inventory and rendered historical price chart.
+- The exploration notebook executed all six code cells and saved output without cell errors. Kernel shutdown emits a macOS sandbox child-process enumeration warning after execution; the runner exits successfully.
 
-The supplied environment resolves macOS OpenMP using the bundled scikit-learn OpenMP library copied into the workspace-local Python runtime. A fresh machine should install the platform OpenMP runtime as explained in README.
-
-Tests establish internal mechanics, not numerical agreement with real markets, real ex-ante forecast availability, quantile calibration, or suitability for financial decisions.
+These checks establish pipeline mechanics, not raw-exchange accuracy, forecast vintage availability, PriceFM neural-model equivalence, or interval calibration. Nominal 80% interval coverage on the three-day DE_LU example is 63.9%.

@@ -1,4 +1,4 @@
-"""Educational CfD scenarios in CNY. No execution or trading interfaces.
+"""Educational CfD scenarios in EUR. No execution or trading interfaces.
 
 P10/P50/P90 do not identify a distribution: use explicitly assumed bounded
 piecewise-linear inverse CDF tails and a Gaussian temporal copula.
@@ -28,7 +28,7 @@ def settlement(spot, volume, contract_price, hedge_ratio):
 
 
 def price_scenarios(
-    quantiles, price_floor, price_cap, n_scenarios=5000, correlation=0.65, seed=42
+    quantiles, lower_bound, upper_bound, n_scenarios=5000, correlation=0.65, seed=42
 ):
     q = np.asarray(quantiles, float)
     if (
@@ -40,14 +40,14 @@ def price_scenarios(
     ):
         raise ValueError("Expected finite ordered (hours,3) quantiles")
     if (
-        not np.isfinite([price_floor, price_cap]).all()
-        or price_floor >= price_cap
+        not np.isfinite([lower_bound, upper_bound]).all()
+        or lower_bound >= upper_bound
         or not 0 <= correlation <= 1
         or n_scenarios < 2
     ):
         raise ValueError("Invalid scenario parameters")
     # Physical price bounds also constrain extrapolated quantiles.
-    q = np.clip(q, price_floor, price_cap)
+    q = np.clip(q, lower_bound, upper_bound)
     rng = np.random.default_rng(seed)
     z = np.sqrt(correlation) * rng.normal(size=(n_scenarios, 1)) + np.sqrt(
         1 - correlation
@@ -55,7 +55,7 @@ def price_scenarios(
     u = ndtr(z)
     return np.column_stack(
         [
-            np.interp(u[:, j], [0, 0.1, 0.5, 0.9, 1], [price_floor, *q[j], price_cap])
+            np.interp(u[:, j], [0, 0.1, 0.5, 0.9, 1], [lower_bound, *q[j], upper_bound])
             for j in range(len(q))
         ]
     )

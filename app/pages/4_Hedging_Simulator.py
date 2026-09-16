@@ -3,61 +3,68 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import numpy as np
-import streamlit as st
 import plotly.express as px
+import streamlit as st
 from app.common import setup, evaluate
 from analytics.hedging import price_scenarios, hedge_analysis, suggest_hedge
 
-province, p, df = setup("Hedging Simulator")
+zone, df = setup("Hedging Simulator")
 st.caption(
-    "Scenario exercise for the final held-out day, viewed from its midnight forecast origin. Fixed volume profile; no dispatch optimization or execution."
+    "Illustrative fixed-for-floating contract against day-ahead prices. Historical final delivery day; fixed energy profile, not intraday/imbalance settlement."
 )
+pred, _, _ = evaluate(zone, "LightGBM quantile", 1)
+history = df[df.timestamp < pred.timestamp.min()].tail(90 * 24)
 a, b, c = st.columns(3)
-contract = a.number_input("Contract price (CNY/MWh)", value=float(p["benchmark_price"]))
+contract = a.number_input(
+    "Fixed contract price (EUR/MWh)", value=round(float(history.price.mean()), 2)
+)
 volume = b.number_input(
-    "Metered volume per hour (MWh)", min_value=0.1, value=100.0, step=10.0
+    "Energy per hourly interval (MWh)", min_value=0.1, value=100.0, step=10.0
 )
 side = c.selectbox("Perspective", ["buyer", "seller"])
 ratio = st.slider("Contracted share (%)", 0, 100, 90, step=5)
-tolerance = st.slider(
-    "Risk tolerance (0 = cautious, 1 = expected value)", 0.0, 1.0, 0.5, step=0.05
-)
-confidence = st.selectbox("VaR / CVaR confidence", [0.9, 0.95, 0.99], index=1)
+tolerance = st.slider("Risk tolerance", 0.0, 1.0, 0.5, step=0.05)
 correlation = st.slider(
     "Assumed hourly scenario correlation", 0.0, 1.0, 0.65, step=0.05
 )
-pred, _, _ = evaluate(province, "LightGBM quantile", 1)
+confidence = st.selectbox("VaR / CVaR confidence", [0.9, 0.95, 0.99], index=1)
+width = max(float(history.price.std()), 10)
+low_default = float(min(history.price.min(), pred.p10.min()) - 2 * width)
+high_default = float(max(history.price.max(), pred.p90.max()) + 2 * width)
+a, b = st.columns(2)
+low = a.number_input("Scenario lower bound (EUR/MWh)", value=round(low_default, 2))
+high = b.number_input("Scenario upper bound (EUR/MWh)", value=round(high_default, 2))
+st.caption(
+    "Bounds are editable stress assumptions derived from past prices and forecast quantiles, not market price limits. Three quantiles alone do not determine tail risk."
+)
+if low >= high:
+    st.error("Lower bound must be below upper bound.")
+    st.stop()
 scenarios = price_scenarios(
-    pred[["p10", "p50", "p90"]],
-    p["price_floor"],
-    p["price_cap"],
-    correlation=correlation,
+    pred[["p10", "p50", "p90"]], low, high, correlation=correlation
 )
 table = hedge_analysis(scenarios, volume, contract, side=side, confidence=confidence)
 selected = table.iloc[np.abs(table.hedge_ratio - ratio / 100).argmin()]
 a, b, c = st.columns(3)
 a.metric(
     "Expected cost" if side == "buyer" else "Expected gross revenue",
-    f"¥{selected.expected_settlement:,.0f}",
+    f"€{selected.expected_settlement:,.0f}",
 )
-b.metric("Loss VaR", f"¥{selected.loss_var:,.0f}")
-c.metric("Loss CVaR", f"¥{selected.loss_cvar:,.0f}")
+b.metric("Loss VaR", f"€{selected.loss_var:,.0f}")
+c.metric("Loss CVaR", f"€{selected.loss_cvar:,.0f}")
 st.info(
-    f"Scenario heuristic suggests {suggest_hedge(table, tolerance):.0%} contracted share. Forecast origin: {pred.origin.iloc[0]}."
+    f"Educational heuristic: {suggest_hedge(table, tolerance):.0%} contracted. Delivery: {pred.delivery_date.iloc[0]}, {len(pred)} hours; total volume {len(pred) * volume:,.0f} MWh."
 )
 st.plotly_chart(
     px.line(
         table,
         x="hedge_ratio",
         y=["expected_loss", "loss_var", "loss_cvar"],
-        labels={"value": "CNY", "hedge_ratio": "Contracted share"},
-        title="Expected loss and upper-tail loss",
+        labels={"value": "EUR", "hedge_ratio": "Contracted share"},
     ),
     width="stretch",
 )
 st.dataframe(table, hide_index=True)
-st.markdown("""**Assumptions:** piecewise-linear inverse CDF through the floor, P10, P50, P90 and cap; Gaussian hourly dependence; 5,000 scenarios with seed 42. Tails and dependence are imposed, not learned. Quantiles are clipped to province bounds.
+st.markdown("""Settlement = spot × energy + (fixed price − spot) × contracted energy. Buyer loss is cost; seller loss is negative gross revenue. Generation costs, fees, volume mismatch, basis and credit risks are excluded.
 
-Buyer loss is settlement cost; seller loss is negative gross revenue. Negative seller VaR is possible and is not profit after production costs. Spot-exposure columns exclude the fixed contract leg. A 100% hedge removes price risk only under the assumed fixed volume and matched reference price; volume, basis, credit and fee risks are excluded.
-
-The heuristic minimizes expected loss plus a tolerance-dependent penalty on CVaR above the mean. It is not a trading recommendation.""")
+Scenarios use a bounded piecewise-linear inverse CDF and Gaussian hourly dependence (5,000 paths, seed 42). Quantiles are clipped to the selected stress bounds. This is a scenario assumption, not a calibrated joint distribution or a trading recommendation. A 100% hedge removes price risk only for matched, fixed volumes and reference prices.""")

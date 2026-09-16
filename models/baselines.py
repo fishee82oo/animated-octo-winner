@@ -10,7 +10,7 @@ class Naive:
         return self
 
     def predict(self, X):
-        return X.price_lag_1.to_numpy()
+        return X.price_last_known.to_numpy()
 
 
 class SeasonalNaive:
@@ -18,37 +18,31 @@ class SeasonalNaive:
         return self
 
     def predict(self, X):
-        return X.price_lag_168.to_numpy()
+        return X.price_lag_week.to_numpy()
 
 
 class Sarimax:
-    """Compact ARX baseline; daily shape supplied by exogenous features.
-
-    Nonconvergence is surfaced through diagnostics, never silently hidden.
-    """
-
-    columns = [
-        "hour",
-        "day_of_week",
-        "load_mw_forecast",
-        "wind_mw_forecast",
-        "solar_mw_forecast",
-        "coal_index",
-        "tou_peak",
-        "tou_sharp_peak",
-        "tou_valley",
-    ]
-
     def fit(self, X, y):
+        self.columns = [
+            c
+            for c in [
+                "hour_sin",
+                "hour_cos",
+                "day_of_week",
+                "load_forecast_mw",
+                "solar_forecast_mw",
+                "wind_forecast_mw",
+            ]
+            if c in X
+        ]
         self.scaler = StandardScaler().fit(X[self.columns])
-        exog = self.scaler.transform(X[self.columns])
         self.center = float(np.mean(y))
-        self.scale = max(float(np.std(y)), 1)
+        self.scale = max(float(np.std(y)), 1.0)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always", ConvergenceWarning)
             self.result = SM_SARIMAX(
                 (np.asarray(y) - self.center) / self.scale,
-                exog=exog,
+                exog=self.scaler.transform(X[self.columns]),
                 order=(1, 0, 0),
                 trend="c",
                 enforce_stationarity=False,

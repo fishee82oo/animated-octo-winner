@@ -1,66 +1,96 @@
-"""Daily rolling origin with fully separated targets and origin-safe features."""
+"""D-1 origin, local delivery-day evaluation, including 23/25-hour DST days."""
 
 import numpy as np
 import pandas as pd
-from data.connectors import validate
-from features.build_features import build_features
+from data.connectors import validate, settings
+from features.build_features import (
+    build_features,
+    delivery_clock,
+    delivery_period,
+    issue_time,
+)
 from backtest.metrics import report
 
 
 def walk_forward(
-    frame, model_factory, days=7, min_train_days=30, window_days=None, feature_seed=123
+    frame,
+    model_factory,
+    days=3,
+    min_train_days=30,
+    window_days=90,
+    end_date=None,
+    use_exogenous=True,
 ):
     if (
         days < 1
         or min_train_days < 1
         or (window_days is not None and window_days < min_train_days)
     ):
-        raise ValueError("Invalid training/evaluation window")
-    df = validate(frame).set_index("timestamp")
-    x = build_features(frame, seed=feature_seed)
+        raise ValueError("Invalid evaluation windows")
+    frame = validate(frame)
+    df = frame.set_index("timestamp")
+    x = build_features(frame, use_exogenous)
     eligible = x.notna().all(axis=1)
-    origins = [
-        d
-        for d in df.index.normalize().unique()
-        if len(df.loc[df.index.normalize() == d]) == 24
-        and (eligible & (x.index < d)).sum() >= min_train_days * 24
-    ]
+    local = delivery_clock(df.index)
+    day_index = local.normalize()
+    origins = []
+    for delivery in day_index.unique():
+        next_day = delivery + pd.DateOffset(days=1)
+        expected = pd.date_range(
+            delivery, next_day, freq="h", inclusive="left"
+        ).tz_convert("UTC")
+        test = day_index == delivery
+        if not df.index[test].equals(expected) or not eligible[test].all():
+            continue
+        train = eligible & (df.index < delivery.tz_convert("UTC"))
+        if window_days is not None:
+            train &= df.index >= (
+                delivery - pd.DateOffset(days=window_days)
+            ).tz_convert("UTC")
+        if len(day_index[train].unique()) < min_train_days:
+            continue
+        if end_date is not None and delivery.date() > pd.Timestamp(end_date).date():
+            continue
+        origins.append(delivery)
     if len(origins) < days:
-        raise ValueError("Insufficient complete days after feature warmup and training")
+        raise ValueError("Insufficient complete delivery days after history warmup")
     results = []
     diagnostics = []
-    for origin in origins[-days:]:
-        train = eligible & (x.index < origin)
+    for delivery in origins[-days:]:
+        test = day_index == delivery
+        train = eligible & (df.index < delivery.tz_convert("UTC"))
         if window_days is not None:
-            train &= x.index >= origin - pd.Timedelta(days=window_days)
-        test = (x.index >= origin) & (x.index < origin + pd.Timedelta(days=1))
-        if not eligible[test].all():
-            raise ValueError("Missing forecast features")
+            train &= df.index >= (
+                delivery - pd.DateOffset(days=window_days)
+            ).tz_convert("UTC")
         model = model_factory().fit(x.loc[train], df.loc[train, "price"])
-        prediction = model.predict(x.loc[test])
+        a = np.asarray(model.predict(x.loc[test]))
+        n = int(test.sum())
         part = pd.DataFrame(
             dict(
-                timestamp=x.index[test],
-                origin=origin,
+                timestamp=df.index[test],
+                delivery_date=str(delivery.date()),
+                origin=issue_time(delivery),
                 actual=df.loc[test, "price"].values,
-                tou_period=df.loc[test, "tou_period"].values,
+                delivery_period=delivery_period(df.index[test]),
             )
         )
-        a = np.asarray(prediction)
-        if a.ndim == 2 and a.shape == (24, 3):
+        if a.shape == (n, 3):
             part[["p10", "p50", "p90"]] = a
             part["prediction"] = a[:, 1]
-        elif a.shape == (24,):
+        elif a.shape == (n,):
             part["prediction"] = a
         else:
-            raise ValueError("Model must return (24,) or (24,3)")
+            raise ValueError("Model returned invalid shape")
         if not np.isfinite(a).all():
-            raise ValueError("Nonfinite forecast")
+            raise ValueError("Nonfinite predictions")
         part["spike_threshold"] = df.loc[train, "price"].quantile(0.9)
         results.append(part)
         diagnostics.append(
             dict(
-                origin=str(origin),
+                delivery_date=str(delivery.date()),
+                origin=str(issue_time(delivery)),
+                forecast_hours=n,
                 train_rows=int(train.sum()),
                 **getattr(model, "diagnostics", {}),
             )
