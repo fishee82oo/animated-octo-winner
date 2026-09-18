@@ -32,6 +32,9 @@ class Sarimax:
                 "load_forecast_mw",
                 "solar_forecast_mw",
                 "wind_forecast_mw",
+                "weather_temperature_c",
+                "weather_wind_100m_ms",
+                "weather_radiation_wm2",
             ]
             if c in X
         ]

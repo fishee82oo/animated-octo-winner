@@ -5,7 +5,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from app.common import setup, dataset
+from app.common import setup, dataset, weather_available, weather_dataset
+from data.weather import WeatherConnector
 from data.connectors import markets
 
 zone, df = setup("Data Explorer")
@@ -83,3 +84,22 @@ st.download_button(
     f"{zone}_{month}.csv",
     "text/csv",
 )
+
+st.subheader("Archived weather forecasts")
+if weather_available(zone):
+    try:
+        weather = weather_dataset(zone)
+    except (ValueError, FileNotFoundError) as exc:
+        st.error(str(exc))
+        st.stop()
+    joined_weather = view[["timestamp", "price"]].merge(weather, on="timestamp", how="inner")
+    st.caption(f"{len(joined_weather)} of {len(view)} selected hours have complete weather. Forecasts use a fixed 48-hour lead; geographic sampling is illustrative.")
+    variable = st.selectbox("Weather variable", [c for c in weather.columns if c.startswith("weather_")])
+    if not joined_weather.empty:
+        st.plotly_chart(px.line(joined_weather, x="timestamp", y=variable, title="Archived forecast values, not observed weather"), width="stretch")
+        st.plotly_chart(px.scatter(joined_weather, x=variable, y="price", labels={"price": "EUR/MWh"}, title="Weather forecast and historical price"), width="stretch")
+        st.download_button("Download aligned weather and prices", joined_weather.to_csv(index=False), f"{zone}_{month}_weather.csv", "text/csv")
+    with st.expander("Weather source, sites, coverage and timing assumptions"):
+        st.json(WeatherConnector(zone).metadata())
+else:
+    st.info(f"Download weather with: python data/download_weather.py --zone {zone}")

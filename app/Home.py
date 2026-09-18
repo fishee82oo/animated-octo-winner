@@ -9,7 +9,7 @@ from data.connectors import markets
 
 zone, df = setup("Europe Power Spot Lab")
 st.markdown(
-    "Forecast European **day-ahead electricity prices** with historical data from PriceFM. Compare simple baselines and LightGBM, inspect uncertainty, and explore fixed-price hedge scenarios."
+    "Forecast European **day-ahead electricity prices** with PriceFM prices and archived **DWD ICON weather forecasts via Open-Meteo**. Compare baselines and LightGBM, test the incremental value of weather, inspect uncertainty, and explore fixed-price hedge scenarios."
 )
 a, b, c = st.columns(3)
 a.metric("Bidding zones", len(markets()))
@@ -30,6 +30,8 @@ st.warning(
 st.caption(
     "PriceFM is the data source. This app runs its own baselines and LightGBM; it does not run the PriceFM neural model or reproduce its published scores."
 )
+st.info("Weather inputs: temperature, 100 m wind, cloud cover, instantaneous solar radiation, precipitation, and heating/cooling degree features. Fixed 48-hour-lead forecasts are checked against D−1 11:00 using an eight-hour availability allowance. This is an explicit timing assumption, not verified historical publication metadata.")
+st.markdown("[Weather archive documentation](https://open-meteo.com/en/docs/previous-runs-api) · [DWD](https://www.dwd.de/) · [Open-Meteo usage terms](https://open-meteo.com/en/terms)")
 st.markdown(
     "[PriceFM repository](https://github.com/runyao-yu/PriceFM) · [Dataset and CC BY 4.0 license](https://huggingface.co/datasets/RunyaoYu/PriceFM) · [Research paper](https://arxiv.org/abs/2508.04875)"
 )

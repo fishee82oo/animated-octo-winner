@@ -1,6 +1,8 @@
-# Europe Power Spot Forecast
+# European Power Price Forecasting & Weather Analytics
 
 A Python 3.11 research and educational project for European **day-ahead electricity-price forecasting** and illustrative fixed-price hedging. The primary data source is [PriceFM](https://github.com/runyao-yu/PriceFM), published by Runyao Yu and coauthors. This project uses its dataset, not its TensorFlow model weights, architecture or reported performance.
+
+Weather extension: public **Open-Meteo / DWD ICON Global archived forecasts**, matched to all 38 bidding zones through configurable geographic sample sites. The dashboard, notebook, LightGBM point/quantile models, SARIMAX and paired rolling backtests support weather inputs. This remains an educational forecasting prototype, not a fund execution system.
 
 **No brokers, real money, automated orders or execution facilities. No live data feed.**
 
@@ -13,6 +15,7 @@ python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python data/download_dataset.py
+python data/download_weather.py --zone DE_LU
 python -m pytest -q
 streamlit run app/Home.py
 ```
@@ -23,9 +26,36 @@ The download is approximately 195 MB. No Hugging Face account or token is requir
 python scripts/benchmark.py --zone DE_LU --days 3 --end-date 2025-12-31
 python scripts/benchmark.py --zone FR --days 7 --price-only
 python scripts/run_notebook.py
+python scripts/weather_benchmark.py --zone DE_LU
+# Optional: populate regional weather caches for every source zone
+python data/download_weather.py --all-zones
+# A smaller weather-enabled model comparison
+python scripts/benchmark.py --zone DE_LU --days 7 --price-only --weather
 ```
 
 `notebooks/01_exploration.ipynb` is an executable walkthrough with data inspection, forecasts, metrics and hedge scenarios. The supplied workspace has already downloaded and validated the data. Tests use labeled toy fixtures for isolation; those fixtures are never connected to the app.
+
+## Weather source and features
+
+Source: [Open-Meteo Previous Runs API](https://open-meteo.com/en/docs/previous-runs-api), model `icon_global` from [DWD](https://www.dwd.de/). We request `_previous_day2` variables at a **fixed 48-hour lead**, not target-day observations or reanalysis. The ordinary Historical Forecast API stitches together short-lead runs; it is not substituted for this fixed-lead archive.
+
+`config/weather.yaml` defines the model, sampling coordinates, variables and availability allowance. All 38 zone caches in this workspace contain **15,360 complete UTC hourly records each**, 2024-04-01 00:00 through 2025-12-31 23:00. Early January 2024 returned missing values during source probing, so full-year 2024 coverage is not assumed. Prices retain their original 2022–2025 coverage; weather-enabled evaluation uses the overlapping eligible hours.
+
+| Feature | Interpretation / units |
+|---|---|
+| Temperature | Regional equal-site mean, °C |
+| Wind | 100 m wind speed, m/s; a resource proxy, not generated MW |
+| Clouds | Cloud cover, % |
+| Radiation | Instantaneous shortwave radiation at the timestamp, W/m² |
+| Precipitation | Preceding-hour accumulation at the timestamp, mm |
+| Temperature spread | Maximum minus minimum across sites, °C |
+| Heating / cooling degrees | Site-level max(18 − T, 0) / max(T − 22, 0), then averaged |
+
+Heating/cooling thresholds and site weights are illustrative. Germany–Luxembourg uses Hamburg, Berlin, Munich and Luxembourg; other zone profiles contain one to three geographic proxies. These are **not** load-, wind-capacity-, solar-capacity- or hydro-catchment-weighted national forecasts. Precipitation alone is not a hydro inflow model.
+
+If any requested site/variable is missing, the entire hour is omitted and reported, never filled from a future observation or an average of fewer sites. Raw responses and derived CSVs are cached with SHA-256 provenance. `data/weather_raw/` and `data/weather_cache/` are excluded from Git. Reproducible downloads and per-zone manifests are under `reports/weather/`. No extra Python package or API key is needed for the educational public endpoint.
+
+Weather data are CC BY 4.0 with Open-Meteo/DWD attribution. The public API is for non-commercial use: **undisclosed research at a commercial fund requires appropriate commercial API access**, even though the underlying data license is CC BY 4.0. See [provider terms](https://open-meteo.com/en/terms) and `DATA_LICENSE.md`; no subscription is purchased or account connected by this project.
 
 ## Data source and provenance
 
@@ -60,6 +90,18 @@ Features comprise local clock/calendar variables, UTC offset, same wall-hour pri
 
 Optionally include PriceFM's target-day load/wind/solar forecasts and their net-load combination. This assumes the source forecast values were available by the issue time; **the dataset lacks vintages to verify that assumption**. Disable these features in the UI or use `--price-only` for a comparison without forecast covariates. Upstream interpolation limitations still apply to prices themselves. This is not a fully audited historical auction replay.
 
+Weather has a separate time guard, applied to **each training row's own origin**, not just the current test origin:
+
+```text
+reference_time_bound = weather valid time − 48 hours
+assumed_available_at = reference_time_bound + 8 hours
+require assumed_available_at <= D−1 11:00 Europe/Brussels
+```
+
+These are nominal bounds and an explicit publication-delay assumption, **not provider-supplied run IDs or verified publication timestamps**. Fixed-lead series use different run references for different target hours, rather than one daily run. The allowance leaves a margin before the research cutoff on 23/24/25-hour days. The older lead sacrifices forecast freshness. Exact publication-vintage auditing would require a run-level source with historical dissemination metadata. Open-Meteo's single-run source was researched but its pre-2026 ECMWF archive is described as hindcasts; it was not silently substituted for contemporaneous ICON forecasts.
+
+The app defaults to archived weather when cached and disables PriceFM supply/demand forecasts by default. Users can enable them separately. `build_features(frame, use_exogenous=False, weather=weather)` enables the eight weather columns. `walk_forward(..., weather=weather, use_weather=False)` applies the same weather availability mask without supplying those columns to the model; this is the control arm for paired comparisons.
+
 ## Models, evaluation and metrics
 
 Models share `fit(X, y)` / `predict(X)`:
@@ -76,6 +118,25 @@ Metrics are overall and by research delivery groups: weekday 08:00–20:00, othe
 
 A three-day DE_LU smoke test ending 2025-12-31, with PriceFM forecast inputs enabled, produced MAE of 9.05 (persistence), 13.54 (weekly), 13.86 (SARIMAX), 5.93 (LightGBM point), and 6.94 EUR/MWh (quantile P50). The nominal 80% interval covered 63.9%. This small slice verifies execution, not stable rankings, calibrated risk, or PriceFM paper reproduction. Reports are saved under `reports/`.
 
+### Weather ablation: a longer, paired evaluation
+
+`python scripts/weather_benchmark.py` evaluates **120 delivery days / 2,879 hours** in four 30-day windows ending March 31, June 30, September 30 and December 31, 2025. March includes a 23-hour DST day. Each fit uses the prior 90 local days. All arms use identical target timestamps and training eligibility, checked by the script. Fixed hyperparameters are not selected on these test windows. This is four seasonal slices, not a full-year backtest.
+
+| Model / inputs | Without weather MAE | With weather MAE | Relative reduction |
+|---|---:|---:|---:|
+| LightGBM, prices + calendar | 21.71 | 18.43 | 15.1% |
+| LightGBM, prices + calendar + PriceFM forecasts | 12.16 | 11.95 | 1.7% |
+| Quantile LightGBM P50, prices + calendar | 21.04 | 18.12 | 13.9% |
+| SARIMAX, prices + calendar | 29.12 | 22.74 | 21.9% |
+
+MAE units are EUR/MWh. SARIMAX takes temperature, wind and radiation as weather regressors; LightGBM takes all eight features. Persistence and weekly-naive controls have MAEs of 33.11 and 32.50. Weather does not improve every model/window: for example, point LightGBM with PriceFM forecasts is slightly worse in March, and weather SARIMAX is worse in December. No universal uplift is claimed.
+
+Two SARIMAX fits reported nonconvergence; their warnings are retained in the benchmark diagnostics and results summary. Scores are not silently substituted with another model.
+
+Weather improves P50 accuracy but **does not solve interval calibration**. Without PriceFM covariates, P10–P90 coverage rises from 56.4% to 59.6%, well below nominal 80%. With PriceFM covariates plus weather, coverage is 61.6%. These uncalibrated intervals should not be represented as validated fund risk limits. The old €5.93 result is a different three-day slice and is not comparable to these longer-window numbers.
+
+Outputs: `reports/weather/DE_LU_summary.csv`, `DE_LU_by_window.csv`, hourly `DE_LU_predictions.csv`, fit diagnostics/provenance in `DE_LU_benchmark.json`, and Plotly `DE_LU_comparison.html`. See `reports/weather/RESULTS.md` for the review summary. These are forecasting results, **not strategy P&L or evidence of tradable alpha**.
+
 ## Hedge scenarios
 
 For price P, energy V, fixed price C and matched contracted energy H = hV:
@@ -91,5 +152,7 @@ P10/P50/P90 are converted into an assumed piecewise-linear inverse CDF with edit
 ## Dashboard
 
 `Home` provides scope and provenance. `Data Explorer` shows source prices, forecast drivers, hourly profiles and cross-zone comparisons. `Forecast & Backtest` runs every model and displays quantile bands. `Model Leaderboard` compares identical dates and feature choices. `Hedging Simulator` exposes contract price, volume, share, risk tolerance, confidence, dependence and stress bounds.
+
+Weather additions: the explorer plots aligned archived weather and price relationships; forecast controls independently toggle weather and PriceFM covariates; the leaderboard can compare weather on/off on matched samples; the hedging page can use weather-informed quantiles. Run buttons work offline after caches are downloaded. Missing cache coverage produces a message rather than synthetic weather.
 
 All charts use Plotly. No scraping or account connections are needed. The historical China prototype remains recoverable in Git history; this Europe restart replaces its active code and documentation. The connected GitHub repository URL is unchanged.

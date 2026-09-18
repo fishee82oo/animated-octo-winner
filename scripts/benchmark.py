@@ -9,6 +9,7 @@ from models.baselines import Naive, SeasonalNaive, Sarimax
 from models.gbm import GBM
 from models.quantile import QuantileGBM
 from backtest.walk_forward import walk_forward
+from data.weather import WeatherConnector
 
 
 def main():
@@ -17,8 +18,12 @@ def main():
     p.add_argument("--days", type=int, default=3)
     p.add_argument("--end-date", default="2025-12-31")
     p.add_argument("--price-only", action="store_true")
+    p.add_argument("--weather", action="store_true", help="Include cached fixed-lead weather forecasts")
     args = p.parse_args()
     frame = PriceFMConnector(args.zone).load()
+    weather = WeatherConnector(args.zone).load() if args.weather else None
+    output_dir = ROOT / "reports" / "weather" if args.weather else ROOT / "reports"
+    output_dir.mkdir(parents=True, exist_ok=True)
     rows = []
     for name, cls in {
         "Persistence": Naive,
@@ -33,19 +38,19 @@ def main():
             days=args.days,
             end_date=args.end_date,
             use_exogenous=not args.price_only,
+            weather=weather,
         )
         metrics["model"] = name
         metrics["zone"] = args.zone
         rows.append(metrics)
         print(name, metrics.iloc[0].to_dict(), diag[-1], flush=True)
         pred.to_csv(
-            ROOT
-            / "reports"
+            output_dir
             / f"{args.zone}_{name.lower().replace(' ', '_')}_predictions.csv",
             index=False,
         )
     pd.concat(rows, ignore_index=True).to_csv(
-        ROOT / "reports" / f"{args.zone}_benchmark.csv", index=False
+        output_dir / f"{args.zone}_benchmark.csv", index=False
     )
 
 

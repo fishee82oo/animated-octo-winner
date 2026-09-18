@@ -33,7 +33,27 @@ def delivery_period(index):
     )
 
 
-def build_features(frame, use_exogenous=True):
+def weather_features(index, weather):
+    """As-of guard for every training and test row's own D-1 origin.
+
+    Missing archive hours remain NaN and are excluded by the backtest. No
+    forward/backward filling and no replacement with observed weather.
+    """
+    from data.weather import validate_weather, WEATHER_COLUMNS
+    source = validate_weather(weather).set_index("timestamp")
+    idx = pd.DatetimeIndex(index)
+    aligned = source.reindex(idx)
+    days = delivery_clock(idx).normalize()
+    origins = pd.DatetimeIndex([issue_time(day) for day in days.unique()])
+    origin_map = pd.Series(origins, index=days.unique())
+    row_origins = pd.Series(origin_map.reindex(days).to_numpy(), index=idx)
+    late = aligned.assumed_available_at.notna() & (aligned.assumed_available_at > row_origins)
+    if late.any():
+        raise ValueError("Weather forecast was not available by the D-1 research origin")
+    return aligned[WEATHER_COLUMNS].astype(float)
+
+
+def build_features(frame, use_exogenous=True, weather=None):
     df = validate(frame).set_index("timestamp")
     idx = df.index
     local = delivery_clock(idx)
@@ -73,4 +93,6 @@ def build_features(frame, use_exogenous=True):
         x["net_load_forecast_mw"] = (
             df.load_forecast_mw - df.solar_forecast_mw - df.wind_forecast_mw
         )
+    if weather is not None:
+        x = x.join(weather_features(idx, weather))
     return x.astype(float)

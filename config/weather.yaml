@@ -1,0 +1,54 @@
+provider: Open-Meteo / DWD ICON Global
+endpoint: https://previous-runs-api.open-meteo.com/v1/forecast
+model: icon_global
+lead_days: 2
+availability_delay_hours: 8
+default_start: '2024-04-01'
+default_end: '2025-12-31'
+documentation: https://open-meteo.com/en/docs/previous-runs-api
+sampling_note: Equal-weight illustrative geographic proxies, not demand or installed-capacity weights. Coordinates are approximate; no claim of full bidding-zone coverage.
+variables:
+  temperature_2m: [temperature_c, '°C']
+  wind_speed_100m: [wind_100m_ms, 'm/s']
+  cloud_cover: [cloud_pct, '%']
+  shortwave_radiation_instant: [radiation_wm2, 'W/m²']
+  precipitation: [precipitation_mm, mm]
+zones:
+  AT: [[Vienna, 48.21, 16.37], [Salzburg, 47.80, 13.04]]
+  BE: [[Brussels, 50.85, 4.35]]
+  BG: [[Sofia, 42.70, 23.32]]
+  CZ: [[Prague, 50.08, 14.44]]
+  DE_LU: [[Hamburg, 53.55, 9.99], [Berlin, 52.52, 13.41], [Munich, 48.14, 11.58], [Luxembourg, 49.61, 6.13]]
+  DK_1: [[Aarhus, 56.16, 10.20]]
+  DK_2: [[Copenhagen, 55.68, 12.57]]
+  EE: [[Tallinn, 59.44, 24.75]]
+  ES: [[Madrid, 40.42, -3.70], [Seville, 37.39, -5.98], [Zaragoza, 41.65, -0.89]]
+  FI: [[Helsinki, 60.17, 24.94], [Oulu, 65.01, 25.47]]
+  FR: [[Paris, 48.86, 2.35], [Lyon, 45.76, 4.84], [Bordeaux, 44.84, -0.58]]
+  GR: [[Athens, 37.98, 23.73]]
+  HR: [[Zagreb, 45.82, 15.98]]
+  HU: [[Budapest, 47.50, 19.04]]
+  IT_CALA: [[Catanzaro, 38.91, 16.59]]
+  IT_CNOR: [[Florence, 43.77, 11.25]]
+  IT_CSUD: [[Rome, 41.90, 12.50]]
+  IT_NORD: [[Milan, 45.46, 9.19], [Venice, 45.44, 12.32]]
+  IT_SARD: [[Cagliari, 39.22, 9.12]]
+  IT_SICI: [[Palermo, 38.12, 13.36]]
+  IT_SUD: [[Bari, 41.12, 16.87]]
+  LT: [[Vilnius, 54.69, 25.28]]
+  LV: [[Riga, 56.95, 24.11]]
+  NL: [[Amsterdam, 52.37, 4.90], [Groningen, 53.22, 6.57]]
+  NO_1: [[Oslo, 59.91, 10.75]]
+  NO_2: [[Kristiansand, 58.15, 8.00]]
+  NO_3: [[Trondheim, 63.43, 10.40]]
+  NO_4: [[Tromso, 69.65, 18.96]]
+  NO_5: [[Bergen, 60.39, 5.32]]
+  PL: [[Warsaw, 52.23, 21.01], [Poznan, 52.41, 16.93]]
+  PT: [[Lisbon, 38.72, -9.14]]
+  RO: [[Bucharest, 44.43, 26.10]]
+  SE_1: [[Lulea, 65.58, 22.15]]
+  SE_2: [[Sundsvall, 62.39, 17.31]]
+  SE_3: [[Stockholm, 59.33, 18.07]]
+  SE_4: [[Malmo, 55.61, 13.00]]
+  SI: [[Ljubljana, 46.06, 14.51]]
+  SK: [[Bratislava, 48.15, 17.11]]

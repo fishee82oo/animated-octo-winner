@@ -8,6 +8,7 @@ from features.build_features import (
     delivery_clock,
     delivery_period,
     issue_time,
+    weather_features,
 )
 from backtest.metrics import report
 
@@ -20,6 +21,8 @@ def walk_forward(
     window_days=90,
     end_date=None,
     use_exogenous=True,
+    weather=None,
+    use_weather=True,
 ):
     if (
         days < 1
@@ -29,8 +32,12 @@ def walk_forward(
         raise ValueError("Invalid evaluation windows")
     frame = validate(frame)
     df = frame.set_index("timestamp")
-    x = build_features(frame, use_exogenous)
+    x = build_features(frame, use_exogenous, weather if use_weather else None)
     eligible = x.notna().all(axis=1)
+    # Supplying weather constrains BOTH ablation arms to identical eligible rows,
+    # even when use_weather=False. This prevents a coverage-driven comparison.
+    if weather is not None:
+        eligible &= weather_features(df.index, weather).notna().all(axis=1)
     local = delivery_clock(df.index)
     day_index = local.normalize()
     origins = []
@@ -92,6 +99,10 @@ def walk_forward(
                 origin=str(issue_time(delivery)),
                 forecast_hours=n,
                 train_rows=int(train.sum()),
+                train_start=str(df.index[train].min()),
+                train_end=str(df.index[train].max()),
+                feature_count=len(x.columns),
+                weather_features=weather is not None and use_weather,
                 **getattr(model, "diagnostics", {}),
             )
         )

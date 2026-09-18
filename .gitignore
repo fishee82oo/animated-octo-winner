@@ -4,4 +4,6 @@ __pycache__/
 .ruff_cache/
 data/cache/
 data/raw/
+data/weather_cache/
+data/weather_raw/
 .ipynb_checkpoints/

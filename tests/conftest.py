@@ -18,3 +18,14 @@ def hourly():
             wind_forecast_mw=100 + 30 * np.cos(i / 13),
         )
     )
+
+
+@pytest.fixture
+def weather_hourly(hourly):
+    from data.weather import WEATHER_COLUMNS
+    frame = pd.DataFrame({"timestamp": hourly.timestamp})
+    frame["reference_time_bound"] = frame.timestamp - pd.Timedelta(hours=48)
+    frame["assumed_available_at"] = frame.timestamp - pd.Timedelta(hours=40)
+    for name, value in zip(WEATHER_COLUMNS, [12, 5, 50, 100, 0.2, 4, 6, 0]):
+        frame[name] = float(value)
+    return frame

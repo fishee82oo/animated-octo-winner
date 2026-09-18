@@ -5,14 +5,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import numpy as np
 import plotly.express as px
 import streamlit as st
-from app.common import setup, evaluate
+from app.common import setup, evaluate, weather_available
 from analytics.hedging import price_scenarios, hedge_analysis, suggest_hedge
 
 zone, df = setup("Hedging Simulator")
 st.caption(
     "Illustrative fixed-for-floating contract against day-ahead prices. Historical final delivery day; fixed energy profile, not intraday/imbalance settlement."
 )
-pred, _, _ = evaluate(zone, "LightGBM quantile", 1)
+wx = st.checkbox("Use weather-informed quantiles", value=weather_available(zone), disabled=not weather_available(zone))
+try:
+    pred, _, _ = evaluate(zone, "LightGBM quantile", 1, use_exogenous=False, use_weather=wx)
+except (ValueError, FileNotFoundError) as exc:
+    st.error(str(exc))
+    st.stop()
 history = df[df.timestamp < pred.timestamp.min()].tail(90 * 24)
 a, b, c = st.columns(3)
 contract = a.number_input(

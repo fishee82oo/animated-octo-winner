@@ -1,0 +1,69 @@
+{
+  "provider": "Open-Meteo / DWD ICON Global",
+  "model": "icon_global",
+  "zone": "RO",
+  "config_sha256": "ba7ba1a43c36479e6af7f103cc8f8530ff3dbadeb908d193635862af590d0b0b",
+  "cache_sha256": "0fac2bfcccc9bf4dff5f63c987296c0f5c90f0cd733a683b06bf64207f81a38e",
+  "retrieved_at": "2026-09-17T09:43:28.865499+00:00",
+  "requested_start": "2024-04-01",
+  "requested_end": "2025-12-31",
+  "first_timestamp": "2024-04-01 00:00:00+00:00",
+  "last_timestamp": "2025-12-31 23:00:00+00:00",
+  "rows": 15360,
+  "missing_hours": 0,
+  "missing_timestamps": [],
+  "sites": [
+    [
+      "Bucharest",
+      44.43,
+      26.1
+    ]
+  ],
+  "sampling_note": "Equal-weight illustrative geographic proxies, not demand or installed-capacity weights. Coordinates are approximate; no claim of full bidding-zone coverage.",
+  "lead_days": 2,
+  "availability_delay_hours": 8,
+  "timing": "Fixed-lead archive; nominal reference bound and assumed availability, not verified publication vintages or a common daily run.",
+  "license": "Weather data CC BY 4.0; public API non-commercial research only; commercial API terms apply separately.",
+  "sources": [
+    "https://open-meteo.com/en/docs/previous-runs-api",
+    "https://open-meteo.com/en/terms",
+    "https://www.dwd.de/"
+  ],
+  "requests": [
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2024-04-01&end_date=2024-06-30&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "a055888f6075a88514d1d005dc152cb843d4c1a52c0dd13bfc8ee27de93e320f.json",
+      "sha256": "734de92a34e1aa9025f8f5e3e36ed551a232dc808bb8bcf7bcedc8527b0ba96b"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2024-07-01&end_date=2024-09-30&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "654b053680a689e6d5b71e265ea802eb5baeb9cff832a47c32768c5079d3798c.json",
+      "sha256": "35258ceba6c2f4489153a2cc6a53db7ab82a13838679cc3d0643a7ee375d5367"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2024-10-01&end_date=2024-12-31&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "fa22a69d2d91f8a48a7620604378b0d2733120a567fef50ef6f0515cd158a1da.json",
+      "sha256": "7497c7853e3fae0946e3c5d22c747f9e2937fce9876e8637b576a8766ec08eaa"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2025-01-01&end_date=2025-03-31&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "e72097de187a12f9d2b8a25102ed980f923e04802d84c85e26208670af73f6ed.json",
+      "sha256": "62df899e3b6f59ed130cd7371a4b641fc3ff24ed5aedb831c66d6104864be8f4"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2025-04-01&end_date=2025-06-30&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "8ccaca2edf80f1cefcec98600cdedf860f878e3fa1b018f97991b950b301a809.json",
+      "sha256": "8f3dc020178aff3dfa7220c89a93940f456771f96409b804036270d3253c7fbe"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2025-07-01&end_date=2025-09-30&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "c846985fa1ed11bf74fc172f5b624b888bf6f3b5300913cc5a3d2475137fea42.json",
+      "sha256": "cff98250dd9b605c04e1d88710c072cfdf7d66b67995f21f226c4a4cfb6c6d73"
+    },
+    {
+      "url": "https://previous-runs-api.open-meteo.com/v1/forecast?latitude=44.43&longitude=26.1&start_date=2025-10-01&end_date=2025-12-31&hourly=temperature_2m_previous_day2%2Cwind_speed_100m_previous_day2%2Ccloud_cover_previous_day2%2Cshortwave_radiation_instant_previous_day2%2Cprecipitation_previous_day2&models=icon_global&wind_speed_unit=ms&timezone=GMT",
+      "raw_file": "7cb35f56d45fb8c247a323fd0c2e664e86378efa2361b6e6b7843313787b0975.json",
+      "sha256": "caadba325544d4842ae793c92e81448c48de85268dce77107a5677236f17f9c8"
+    }
+  ]
+}

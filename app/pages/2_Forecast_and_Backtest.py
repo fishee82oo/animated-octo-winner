@@ -7,14 +7,15 @@ from app.common import setup, MODELS, controls, evaluate, forecast_chart
 
 zone, df = setup("Forecast & Backtest")
 model = st.selectbox("Model", list(MODELS), index=3)
-days, end, exog = controls(df)
+days, end, exog, wx = controls(df)
 if st.button("Run backtest", type="primary"):
     try:
-        pred, metrics, diag = evaluate(zone, model, days, end, exog)
-    except ValueError as exc:
+        pred, metrics, diag = evaluate(zone, model, days, end, exog, wx)
+    except (ValueError, FileNotFoundError) as exc:
         st.error(str(exc))
         st.stop()
     st.plotly_chart(forecast_chart(pred), width="stretch")
+    st.caption(f"Actual evaluated dates: {pred.delivery_date.min()} to {pred.delivery_date.max()}; {pred.delivery_date.nunique()} eligible delivery days. Weather inputs: {wx}.")
     st.dataframe(metrics, hide_index=True)
     if "coverage_80" in metrics:
         st.info(
